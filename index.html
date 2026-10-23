@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Soundpad JP</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Soundpad">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d1013">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+html{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);-webkit-text-size-adjust:100%}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;font-size:14px;overscroll-behavior:none}
+[hidden]{display:none!important}
+/* Layout: painel de controle em tela cheia — barra fina no topo, grade de teclas ocupando o resto */
+:root{
+  color-scheme:dark;
+  --chassis:#0d1013;
+  --panel:#161a1f;
+  --key:#1e242b;
+  --key-edge:#2a323b;
+  --ink:#e6ebf0;
+  --muted:#7d8894;
+  --accent:#4fd1c5;
+  --danger:#ff6b5e;
+  --display:"Chakra Petch",ui-rounded,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+html,body{height:100%}
+body{background:var(--chassis);color:var(--ink);font-family:var(--display);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.app{height:100%;display:flex;flex-direction:column;gap:10px;box-sizing:border-box;
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* barra */
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;min-height:40px}
+.brand{font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:13px;color:var(--muted);white-space:nowrap}
+.brand b{color:var(--accent)}
+.layouts{display:flex;gap:4px;background:var(--panel);padding:4px;border-radius:10px;overflow-x:auto;scrollbar-width:none;min-width:0}
+.layouts::-webkit-scrollbar{display:none}
+.lay{border:0;background:transparent;color:var(--muted);font:600 13px var(--mono);padding:6px 10px;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.lay svg{width:18px;height:12px}
+.lay[aria-pressed="true"]{background:var(--key);color:var(--ink);box-shadow:inset 0 0 0 1px var(--key-edge)}
+.spacer{flex:1}
+.btn{border:0;font:600 13px var(--display);letter-spacing:.06em;text-transform:uppercase;padding:9px 14px;border-radius:9px;cursor:pointer;background:var(--panel);color:var(--ink);white-space:nowrap}
+.btn.edit[aria-pressed="true"]{background:var(--accent);color:#06201d}
+.btn.stop{color:var(--danger)}
+.btn:focus-visible,.lay:focus-visible,.pad:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* grade */
+.grid{flex:1;min-height:0;display:grid;gap:10px;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr)}
+.pad{--c:#4fd1c5;position:relative;border:0;border-radius:16px;cursor:pointer;overflow:hidden;
+  background:linear-gradient(180deg,var(--key),#171c22);color:var(--ink);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 0 1px var(--key-edge),0 4px 0 #090b0d;
+  display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:12px 14px;text-align:left;
+  transition:transform .06s ease,box-shadow .06s ease}
+.pad:active{transform:translateY(3px);box-shadow:inset 0 0 0 1px var(--key-edge),0 1px 0 #090b0d}
+.pad .led{width:100%;height:4px;border-radius:2px;background:color-mix(in srgb,var(--c) 30%,transparent)}
+.pad .name{font-weight:600;font-size:clamp(13px,2.4vmin + 6px,26px);line-height:1.1;text-wrap:balance;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.pad .meta{font:400 11px var(--mono);color:var(--muted);display:flex;gap:8px;align-items:center;width:100%}
+.pad .meta .tag{border:1px solid var(--key-edge);border-radius:4px;padding:1px 5px}
+.pad .prog{position:absolute;left:0;bottom:0;height:3px;width:calc(var(--p,0)*100%);background:var(--c)}
+.pad.empty{background:transparent;box-shadow:inset 0 0 0 1.5px var(--key-edge);border:0}
+.pad.empty .name{color:var(--muted);font-weight:500}
+.pad.playing{box-shadow:inset 0 0 0 2px var(--c),0 0 24px color-mix(in srgb,var(--c) 45%,transparent),0 4px 0 #090b0d}
+.pad.playing .led{background:var(--c);box-shadow:0 0 10px var(--c)}
+.pad{touch-action:manipulation}
+.pad.armed{box-shadow:inset 0 0 0 2px var(--accent),0 4px 0 #090b0d}
+.pad.armed::before{content:"Solte para escolher o áudio";position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;background:color-mix(in srgb,var(--chassis) 85%,transparent);color:var(--accent);font:600 14px var(--display)}
+.pad .hold{position:absolute;left:0;top:0;height:3px;width:0;background:var(--accent)}
+.pad.pressing .hold{width:100%;transition:width .5s linear}
+.pad .meta .tag.warn{color:var(--danger);border-color:var(--danger)}
+.pad.lost .name{opacity:.55}
+.awake{font:600 11px var(--mono);color:var(--accent);white-space:nowrap;letter-spacing:.06em}
+.editing .pad{animation:wob .35s ease-in-out infinite alternate}
+.editing .pad::after{content:"✎";position:absolute;top:10px;right:12px;font-size:14px;color:var(--accent)}
+@keyframes wob{from{transform:rotate(-.4deg)}to{transform:rotate(.4deg)}}
+@media (prefers-reduced-motion:reduce){.editing .pad{animation:none}.pad{transition:none}}
+
+/* aviso retrato */
+.rotate{display:none;position:fixed;inset:0;z-index:20;background:var(--chassis);align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:24px;text-align:center}
+.rotate svg{width:64px;height:64px;color:var(--accent)}
+.rotate p{color:var(--muted);max-width:28ch;line-height:1.5;margin:0}
+@media (orientation:portrait){
+  .grid{grid-template-columns:repeat(var(--rows),1fr);grid-template-rows:repeat(var(--cols),1fr)}
+  .bar{flex-wrap:wrap;row-gap:8px}
+  .layouts{order:5;flex:1 1 100%;justify-content:space-between}
+  .lay{flex:1;justify-content:center}
+  .lay svg{transform:rotate(90deg)}
+}
+.root{height:100%}
+
+/* folha de edição */
+.sheet{position:fixed;inset:0;z-index:30;background:rgba(5,7,9,.7);display:flex;align-items:center;justify-content:center;padding:16px}
+.card{background:var(--panel);border-radius:16px;box-shadow:inset 0 0 0 1px var(--key-edge);width:min(560px,100%);max-height:100%;overflow:auto;padding:18px;display:grid;gap:14px;box-sizing:border-box}
+.card h2{margin:0;font-size:16px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.row{display:grid;gap:6px}
+.row label{font:600 11px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+input[type=text]{background:var(--key);border:1px solid var(--key-edge);color:var(--ink);border-radius:9px;padding:10px 12px;font:500 16px var(--display);min-width:0}
+.file{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.file .fname{font:400 12px var(--mono);color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.sw{width:30px;height:30px;border-radius:8px;border:0;cursor:pointer;background:var(--s)}
+.sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--ink)}
+.toggle{display:flex;gap:6px}
+.toggle button{flex:1}
+.toggle button[aria-pressed="true"]{background:var(--key);box-shadow:inset 0 0 0 1px var(--accent);color:var(--accent)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.actions{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.btn.primary{background:var(--accent);color:#06201d}
+.btn.ghost{background:transparent;color:var(--danger);box-shadow:inset 0 0 0 1px var(--key-edge)}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--key);color:var(--ink);padding:8px 14px;border-radius:9px;font:500 13px var(--mono);box-shadow:inset 0 0 0 1px var(--key-edge);z-index:40}
+@media (max-height:420px){.app{gap:8px;padding-block:8px}.grid{gap:8px}.pad{padding:9px 11px;border-radius:13px}.btn{padding:7px 11px}}
+@media (max-width:640px){.brand{display:none}}
+</style>
+</head>
+<body>
+<div class="root" id="root">
+<div class="app" id="app">
+  <div class="bar">
+    <div class="brand">Sound<b>pad</b></div>
+    <div class="layouts" id="layouts" role="group" aria-label="Modelo de grade"></div>
+    <div class="spacer"></div>
+    <span class="awake" id="awake" hidden>● TELA ATIVA</span>
+    <button class="btn stop" id="stopAll" type="button">Parar tudo</button>
+    <button class="btn edit" id="editBtn" type="button" aria-pressed="false">Editar</button>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+
+<input type="file" id="q-file" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg" hidden>
+
+<div class="sheet" id="sheet" hidden>
+  <form class="card" id="form">
+    <h2 id="sheetTitle">Tecla 1</h2>
+    <div class="row">
+      <label for="f-file">Áudio</label>
+      <div class="file">
+        <button class="btn primary" type="button" id="pickFile">Escolher áudio</button>
+        <span class="fname" id="fname">Nenhum áudio</span>
+        <button class="btn" type="button" id="preview">Ouvir</button>
+      </div>
+      <input type="file" id="f-file" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg" hidden>
+    </div>
+    <div class="row">
+      <label for="f-name">Nome na tecla (vem do áudio)</label>
+      <input type="text" id="f-name" maxlength="40" placeholder="Escolha um áudio">
+    </div>
+    <div class="row">
+      <label>Cor</label>
+      <div class="swatches" id="swatches" role="group" aria-label="Cor"></div>
+    </div>
+    <div class="two">
+      <div class="row">
+        <label>Modo</label>
+        <div class="toggle" role="group" aria-label="Modo de toque">
+          <button class="btn" type="button" data-mode="once" id="m-once">Uma vez</button>
+          <button class="btn" type="button" data-mode="loop" id="m-loop">Loop</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="f-vol">Volume <span id="volv">100%</span></label>
+        <input type="range" id="f-vol" min="0" max="100" step="5" value="100">
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" type="button" id="clearPad">Limpar tecla</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" type="button" id="cancel">Cancelar</button>
+        <button class="btn primary" type="submit">Salvar</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+</div>
+
+<script>
+(function(){
+const SLOTS = 15;
+const LAYOUTS = [
+  {n:2,c:2,r:1},{n:4,c:2,r:2},{n:6,c:3,r:2},{n:8,c:4,r:2},{n:12,c:4,r:3},{n:15,c:5,r:3}
+];
+const COLORS = ["#4fd1c5","#5b9dff","#a78bfa","#f472b6","#ff6b5e","#ffb347","#facc15","#7ee081"];
+
+/* ---------- armazenamento (IndexedDB, com fallback em memória) ---------- */
+const mem = new Map();
+let dbp = null;
+function openDB(){
+  if (dbp) return dbp;
+  dbp = new Promise((res)=>{
+    try{
+      const rq = indexedDB.open("soundpad",1);
+      rq.onupgradeneeded = ()=> rq.result.createObjectStore("kv");
+      rq.onsuccess = ()=> res(rq.result);
+      rq.onerror = ()=> res(null);
+    }catch(e){ res(null); }
+  });
+  return dbp;
+}
+async function put(k,v){
+  mem.set(k,v);
+  const db = await openDB(); if(!db) return;
+  try{ await new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);}); }
+  catch(e){ toast("Não consegui salvar no aparelho. O áudio fica só até fechar."); }
+}
+async function get(k){
+  if (mem.has(k)) return mem.get(k);
+  const db = await openDB(); if(!db) return undefined;
+  try{ return await new Promise((res)=>{const r=db.transaction("kv").objectStore("kv").get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>res(undefined);}); }
+  catch(e){ return undefined; }
+}
+async function del(k){
+  mem.delete(k);
+  const db = await openDB(); if(!db) return;
+  try{ db.transaction("kv","readwrite").objectStore("kv").delete(k); }catch(e){}
+}
+
+/* áudio guardado como bytes (ArrayBuffer): o iOS perde Blobs/Files salvos no IndexedDB ao reabrir */
+async function saveAudio(i,blob){
+  const buf=await blob.arrayBuffer();
+  await put("audio-"+i,{buf,type:blob.type||"audio/mpeg"});
+}
+async function loadAudio(i){
+  const rec=await get("audio-"+i);
+  if(!rec) return null;
+  try{
+    if(rec.buf) return new Blob([rec.buf],{type:rec.type||"audio/mpeg"});
+    if(rec instanceof Blob){ const b=await rec.arrayBuffer(); return new Blob([b],{type:rec.type||"audio/mpeg"}); }
+  }catch(e){}
+  return null;
+}
+
+/* ---------- sons de exemplo (gerados, para a primeira abertura) ---------- */
+function wav(fn,dur,sr=22050){
+  const n=Math.floor(dur*sr), buf=new ArrayBuffer(44+n*2), v=new DataView(buf);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  w(0,"RIFF");v.setUint32(4,36+n*2,true);w(8,"WAVE");w(12,"fmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,"data");v.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){const s=Math.max(-1,Math.min(1,fn(i/sr)));v.setInt16(44+i*2,s*32767*.8,true);}
+  return new Blob([buf],{type:"audio/wav"});
+}
+const env=(t,d)=>Math.min(1,t*80)*Math.max(0,1-t/d);
+const SAMPLES = [
+  {name:"Exemplo · Bip", color:"#4fd1c5", blob:()=>wav(t=>Math.sin(2*Math.PI*880*t)*env(t,.25),.25)},
+  {name:"Exemplo · Acorde", color:"#a78bfa", blob:()=>wav(t=>([261.6,329.6,392].reduce((a,f)=>a+Math.sin(2*Math.PI*f*t),0)/3)*env(t,1.4),1.4)},
+  {name:"Exemplo · Alerta", color:"#ff6b5e", blob:()=>wav(t=>Math.sign(Math.sin(2*Math.PI*(t%.2<.1?660:440)*t))*.5*env(t,.8),.8)},
+  {name:"Exemplo · Subida", color:"#facc15", blob:()=>wav(t=>Math.sin(2*Math.PI*(300+900*t)*t)*env(t,.7),.7)}
+];
+
+/* ---------- estado ---------- */
+let state = {layout:4, pads:Array.from({length:SLOTS},()=>({name:"",color:COLORS[0],file:"",mode:"once",vol:1,has:false}))};
+let editing = false;
+const players = new Map();   // slot -> {audio,url}
+const urls = new Map();      // slot -> objectURL
+
+const $ = s=>document.querySelector(s);
+const grid=$("#grid"), layoutsEl=$("#layouts");
+
+function save(){ put("state", JSON.parse(JSON.stringify(state))); }
+
+function layoutIcon(L){
+  const gw=18/L.c, gh=12/L.r; let s='<svg viewBox="0 0 18 12" aria-hidden="true">';
+  for(let y=0;y<L.r;y++)for(let x=0;x<L.c;x++)s+=`<rect x="${x*gw+.6}" y="${y*gh+.6}" width="${gw-1.2}" height="${gh-1.2}" rx=".8" fill="currentColor"/>`;
+  return s+"</svg>";
+}
+function renderLayouts(){
+  layoutsEl.innerHTML="";
+  LAYOUTS.forEach(L=>{
+    const b=document.createElement("button");
+    b.type="button";b.className="lay";b.id="lay-"+L.n;
+    b.setAttribute("aria-pressed",String(state.layout===L.n));
+    b.setAttribute("aria-label",`${L.n} teclas (${L.c} por ${L.r})`);
+    b.innerHTML=layoutIcon(L)+L.n;
+    b.onclick=()=>{state.layout=L.n;save();renderLayouts();renderGrid();};
+    layoutsEl.appendChild(b);
+  });
+}
+function renderGrid(){
+  const L=LAYOUTS.find(l=>l.n===state.layout)||LAYOUTS[1];
+  grid.style.setProperty("--cols",L.c);grid.style.setProperty("--rows",L.r);
+  grid.innerHTML="";
+  for(let i=0;i<L.n;i++){
+    const p=state.pads[i], b=document.createElement("button");
+    b.type="button";b.id="pad-"+i;b.dataset.i=i;
+    b.className="pad"+(p.has?"":" empty")+(players.has(i)?" playing":"")+(p.lost?" lost":"");
+    b.style.setProperty("--c",p.color);
+    const name=p.has?(p.name||p.file||"Sem nome"):(editing?"Tocar para editar":"Segure para vincular áudio");
+    b.innerHTML=`<span class="led"></span><span class="name"></span><span class="meta"><span>${String(i+1).padStart(2,"0")}</span>${p.has&&p.lost?'<span class="tag warn">SEGURE P/ RELIGAR</span>':""}${p.has&&p.mode==="loop"?'<span class="tag">LOOP</span>':""}${p.has&&p.vol<1?`<span class="tag">${Math.round(p.vol*100)}%</span>`:""}</span><span class="prog"></span><span class="hold"></span>`;
+    b.querySelector(".name").textContent=name;
+    bindPad(b,i);
+    grid.appendChild(b);
+  }
+}
+function padEl(i){return document.getElementById("pad-"+i);}
+
+/* ---------- reprodução ---------- */
+async function urlFor(i){
+  if(urls.has(i)) return urls.get(i);
+  const blob=await loadAudio(i); if(!blob) return null;
+  const u=URL.createObjectURL(blob); urls.set(i,u); return u;
+}
+function stop(i){
+  const pl=players.get(i); if(!pl) return;
+  pl.audio.pause(); players.delete(i);
+  const el=padEl(i); if(el){el.classList.remove("playing");el.style.setProperty("--p",0);}
+}
+async function play(i){
+  const p=state.pads[i]; const u=await urlFor(i);
+  if(!u){state.pads[i].lost=true;save();renderGrid();toast("Áudio perdido. Segure a tecla e escolha de novo.");return;}
+  const a=new Audio(u); a.loop=p.mode==="loop"; a.volume=p.vol; a.playsInline=true;
+  players.set(i,{audio:a});
+  const el=padEl(i); el&&el.classList.add("playing");
+  a.ontimeupdate=()=>{const e=padEl(i); if(e&&a.duration) e.style.setProperty("--p",a.currentTime/a.duration);};
+  a.onended=()=>stop(i);
+  try{await a.play();}catch(e){stop(i);toast(e&&e.name==="NotAllowedError"?"Toque de novo para liberar o som.":"Não consegui tocar. Segure a tecla e escolha o áudio de novo.");}
+}
+function onPad(i){
+  if(editing){openSheet(i);return;}
+  if(!state.pads[i].has){toast("Tecla vazia. Segure a tecla para escolher um áudio.");return;}
+  if(players.has(i)) stop(i); else play(i);
+}
+$("#stopAll").onclick=()=>[...players.keys()].forEach(stop);
+$("#editBtn").onclick=()=>{
+  editing=!editing; $("#editBtn").setAttribute("aria-pressed",String(editing));
+  $("#editBtn").textContent=editing?"Concluir":"Editar";
+  document.getElementById("app").classList.toggle("editing",editing);
+  if(editing)[...players.keys()].forEach(stop);
+  renderGrid();
+};
+
+/* ---------- folha de edição ---------- */
+let cur=-1, draft=null, pendingBlob=null, previewAudio=null;
+const swEl=$("#swatches");
+COLORS.forEach(c=>{const b=document.createElement("button");b.type="button";b.className="sw";b.style.setProperty("--s",c);b.dataset.c=c;b.setAttribute("aria-label","Cor "+c);b.onclick=()=>{draft.color=c;paintSheet();};swEl.appendChild(b);});
+function paintSheet(){
+  $("#sheetTitle").textContent="Tecla "+String(cur+1).padStart(2,"0");
+  $("#fname").textContent=pendingBlob?draft.file:(draft.has?(draft.file||"Áudio salvo"):"Nenhum áudio");
+  swEl.querySelectorAll(".sw").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.c===draft.color)));
+  $("#m-once").setAttribute("aria-pressed",String(draft.mode!=="loop"));
+  $("#m-loop").setAttribute("aria-pressed",String(draft.mode==="loop"));
+  $("#f-vol").value=Math.round(draft.vol*100); $("#volv").textContent=Math.round(draft.vol*100)+"%";
+  $("#preview").disabled=!(pendingBlob||draft.has);
+}
+function openSheet(i){
+  cur=i; draft={...state.pads[i]}; pendingBlob=null;
+  $("#f-name").value=draft.name; paintSheet(); $("#sheet").hidden=false;
+}
+function closeSheet(){ if(previewAudio){previewAudio.pause();previewAudio=null;} $("#sheet").hidden=true; cur=-1; }
+$("#pickFile").onclick=()=>$("#f-file").click();
+$("#f-file").onchange=e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  pendingBlob=f; draft.file=f.name;
+  $("#f-name").value=f.name.replace(/\.[^.]+$/,"").slice(0,40);
+  e.target.value=""; paintSheet();
+};
+$("#m-once").onclick=()=>{draft.mode="once";paintSheet();};
+$("#m-loop").onclick=()=>{draft.mode="loop";paintSheet();};
+$("#f-vol").oninput=e=>{draft.vol=e.target.value/100;$("#volv").textContent=e.target.value+"%";};
+$("#preview").onclick=async()=>{
+  if(previewAudio){previewAudio.pause();previewAudio=null;$("#preview").textContent="Ouvir";return;}
+  const u=pendingBlob?URL.createObjectURL(pendingBlob):await urlFor(cur); if(!u) return;
+  previewAudio=new Audio(u); previewAudio.volume=draft.vol;
+  previewAudio.onended=()=>{previewAudio=null;$("#preview").textContent="Ouvir";};
+  $("#preview").textContent="Parar";
+  try{await previewAudio.play();}catch(e){previewAudio=null;$("#preview").textContent="Ouvir";}
+};
+$("#cancel").onclick=closeSheet;
+$("#sheet").onclick=e=>{if(e.target.id==="sheet")closeSheet();};
+$("#clearPad").onclick=async()=>{
+  const i=cur; stop(i);
+  if(urls.has(i)){URL.revokeObjectURL(urls.get(i));urls.delete(i);}
+  await del("audio-"+i);
+  state.pads[i]={name:"",color:COLORS[0],file:"",mode:"once",vol:1,has:false};
+  save(); closeSheet(); renderGrid(); toast("Tecla limpa");
+};
+$("#form").onsubmit=async e=>{
+  e.preventDefault(); const i=cur;
+  draft.name=$("#f-name").value.trim();
+  if(pendingBlob){
+    stop(i);
+    if(urls.has(i)){URL.revokeObjectURL(urls.get(i));urls.delete(i);}
+    await saveAudio(i,pendingBlob); draft.has=true; draft.lost=false;
+  }
+  state.pads[i]=draft; save(); closeSheet(); renderGrid(); toast("Salvo");
+};
+
+/* ---------- segurar a tecla = escolher áudio ---------- */
+const HOLD_MS=500; let quickSlot=-1;
+function bindPad(b,i){
+  let timer=null, held=false, sx=0, sy=0;
+  const reset=()=>{clearTimeout(timer);timer=null;b.classList.remove("pressing","armed");};
+  b.addEventListener("pointerdown",e=>{
+    held=false; sx=e.clientX; sy=e.clientY; b.classList.add("pressing");
+    timer=setTimeout(()=>{held=true;b.classList.remove("pressing");b.classList.add("armed");},HOLD_MS);
+  });
+  b.addEventListener("pointermove",e=>{if(timer&&!held&&Math.hypot(e.clientX-sx,e.clientY-sy)>12)reset();});
+  b.addEventListener("pointercancel",()=>{held=false;reset();});
+  b.addEventListener("pointerup",()=>{
+    const wasHeld=held; reset();
+    if(wasHeld){ [...players.keys()].forEach(stop); openSheet(i); }
+  });
+  b.addEventListener("click",e=>{
+    if(held){held=false;e.preventDefault();return;}
+    onPad(i);
+  });
+}
+$("#q-file").onchange=async e=>{
+  const f=e.target.files&&e.target.files[0]; const i=quickSlot; e.target.value=""; quickSlot=-1;
+  if(!f||i<0) return;
+  stop(i);
+  if(urls.has(i)){URL.revokeObjectURL(urls.get(i));urls.delete(i);}
+  await saveAudio(i,f);
+  const p=state.pads[i], clean=f.name.replace(/\.[^.]+$/,"").slice(0,40);
+  const autoName=!p.name||p.name.startsWith("Exemplo")||p.name===(p.file||"").replace(/\.[^.]+$/,"").slice(0,40);
+  state.pads[i]={...p,has:true,lost:false,file:f.name,name:autoName?clean:p.name};
+  save(); renderGrid(); toast("Áudio vinculado à tecla "+String(i+1).padStart(2,"0"));
+};
+document.addEventListener("contextmenu",e=>e.preventDefault());
+
+try{localStorage.removeItem("sp-force");}catch(e){}
+
+/* ---------- utilidades ---------- */
+let tt;
+function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2200);}
+let lock=null, warned=false;
+async function wake(){
+  if(lock||document.visibilityState!=="visible") return;
+  if(!("wakeLock" in navigator)){
+    if(!warned){warned=true;toast("Este navegador não deixa manter a tela acesa. Use Bloqueio Automático: Nunca.");}
+    return;
+  }
+  try{
+    lock=await navigator.wakeLock.request("screen");
+    $("#awake").hidden=false;
+    lock.addEventListener("release",()=>{lock=null;$("#awake").hidden=true;});
+  }catch(e){ lock=null; }
+}
+document.addEventListener("visibilitychange",wake);
+document.addEventListener("pointerdown",wake,{passive:true,capture:true});
+
+/* ---------- início ---------- */
+(async function init(){
+  renderLayouts(); renderGrid();
+  const saved=await get("state");
+  if(saved&&Array.isArray(saved.pads)){
+    state.layout=saved.layout||4;
+    saved.pads.slice(0,SLOTS).forEach((p,i)=>state.pads[i]={...state.pads[i],...p});
+    for(let i=0;i<SLOTS;i++){
+      const p=state.pads[i]; if(!p.has) continue;
+      const b=await loadAudio(i);
+      if(b){ p.lost=false; if(!(await get("audio-"+i)).buf) await saveAudio(i,b); }
+      else p.lost=true;
+    }
+    save();
+  }else{
+    for(let i=0;i<SAMPLES.length;i++){
+      const s=SAMPLES[i]; await saveAudio(i,s.blob());
+      state.pads[i]={name:s.name,color:s.color,file:"exemplo.wav",mode:"once",vol:1,has:true};
+    }
+    save();
+  }
+  renderLayouts(); renderGrid(); wake();
+  try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+})();
+})();
+</script>
+
+<script>
+if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));}
+</script>
+</body>
+</html>
